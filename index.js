@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const { MongoClient, ServerApiVersion } = require('mongodb');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const app = express();
@@ -21,37 +20,14 @@ if (!mongoURI) {
   process.exit(1);
 }
 
-const client = new MongoClient(mongoURI, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
-// Connect to MongoDB Atlas
-async function connectToDatabase() {
-  try {
-    await client.connect();
+// Connect to MongoDB Atlas using Mongoose
+mongoose.connect(mongoURI)
+  .then(() => {
     console.log("Connected to MongoDB Atlas!");
-
-    const db = client.db('course-platform-db');
-
-    // Create a collection and insert a document to ensure the database is created
-    const testCollection = db.collection('test');
-    await testCollection.insertOne({ test: 'Database initialization' });
-
-    console.log("Database 'course-platform-db' initialized");
-
-    return db;
-  }
-  catch (err) {
+  })
+  .catch(err => {
     console.error("Error connecting to MongoDB Atlas", err);
-  }
-}
-
-// Call the function to connect to MongoDB
-connectToDatabase();
+  });
 
 // Define your routes here
 app.get('/', (req, res) => {
@@ -62,11 +38,18 @@ app.get('/', (req, res) => {
 
 // Create a new course
 app.post('/api/courses', async (req, res) => {
+  console.log(req.body); // Log the request body
   try {
+    const existingCourse = await Course.findOne({ title: req.body.title });
+    if (existingCourse) {
+      return res.status(400).json({ error: 'Course already exists' });
+    }
+
     const course = new Course(req.body); // Create a new Course instance with the request body
     await course.save(); // Save the course to the database
     res.status(201).json(course); // Respond with the created course and a 201 status code
   } catch (error) {
+    console.error("Error saving course:", error); // Log the error
     res.status(400).json({ error: error.message }); // Respond with a 400 status code and error message if there's an error
   }
 });
@@ -83,6 +66,11 @@ app.get('/api/courses', async (req, res) => {
 
 // Update a course by ID
 app.put('/api/courses/:id', async (req, res) => {
+  // Check if the provided ID is a valid ObjectId
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid course ID format' });
+  }
+
   try {
     const course = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }); // Find and update the course
     if (!course) {
