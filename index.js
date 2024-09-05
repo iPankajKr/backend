@@ -1,33 +1,14 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { PrismaClient } = require('@prisma/client'); // Import Prisma Client
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Import the Course model
-const Course = require('./models/Course');
-
 dotenv.config();
 
-const mongoURI = process.env.MONGO_URI;
-
-console.log("MongoDB URI:", mongoURI);
-
-if (!mongoURI) {
-  console.error("MongoDB URI is not defined. Please set the MONGO_URI environment variable.");
-  process.exit(1);
-}
-
-// Connect to MongoDB Atlas using Mongoose
-mongoose.connect(mongoURI)
-  .then(() => {
-    console.log("Connected to MongoDB Atlas!");
-  })
-  .catch(err => {
-    console.error("Error connecting to MongoDB Atlas", err);
-  });
+const prisma = new PrismaClient(); // Instantiate Prisma Client
 
 // Define your routes here
 app.get('/', (req, res) => {
@@ -38,15 +19,13 @@ app.get('/', (req, res) => {
 
 // Create a new course
 app.post('/api/courses', async (req, res) => {
-  console.log(req.body); // Log the request body
   try {
-    const existingCourse = await Course.findOne({ title: req.body.title });
+    const existingCourse = await prisma.course.findUnique({ where: { title: req.body.title } });
     if (existingCourse) {
       return res.status(400).json({ error: 'Course already exists' });
     }
 
-    const course = new Course(req.body); // Create a new Course instance with the request body
-    await course.save(); // Save the course to the database
+    const course = await prisma.course.create({ data: req.body }); // Use Prisma to create a new course
     res.status(201).json(course); // Respond with the created course and a 201 status code
   } catch (error) {
     console.error("Error saving course:", error); // Log the error
@@ -57,7 +36,7 @@ app.post('/api/courses', async (req, res) => {
 // Retrieve all courses
 app.get('/api/courses', async (req, res) => {
   try {
-    const courses = await Course.find(); // Retrieve all courses from the database
+    const courses = await prisma.course.findMany(); // Use Prisma to retrieve all courses
     res.json(courses); // Respond with the list of courses
   } catch (error) {
     res.status(500).json({ error: error.message }); // Respond with a 500 status code and error message if there's an error
@@ -67,15 +46,12 @@ app.get('/api/courses', async (req, res) => {
 // Update a course by ID
 app.put('/api/courses/:id', async (req, res) => {
   // Check if the provided ID is a valid ObjectId
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ error: 'Invalid course ID format' });
-  }
-
+  const courseId = req.params.id; // Assuming ID is a string, adjust if necessary
   try {
-    const course = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }); // Find and update the course
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' }); // Respond with a 404 status code if the course is not found
-    }
+    const course = await prisma.course.update({
+      where: { id: courseId },
+      data: req.body,
+    }); // Use Prisma to find and update the course
     res.json(course); // Respond with the updated course
   } catch (error) {
     res.status(400).json({ error: error.message }); // Respond with a 400 status code and error message if there's an error
@@ -85,10 +61,7 @@ app.put('/api/courses/:id', async (req, res) => {
 // Delete a course by ID
 app.delete('/api/courses/:id', async (req, res) => {
   try {
-    const course = await Course.findByIdAndDelete(req.params.id); // Find and delete the course
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' }); // Respond with a 404 status code if the course is not found
-    }
+    const course = await prisma.course.delete({ where: { id: req.params.id } }); // Use Prisma to find and delete the course
     res.json({ message: 'Course deleted' }); // Respond with a success message
   } catch (error) {
     res.status(500).json({ error: error.message }); // Respond with a 500 status code and error message if there's an error

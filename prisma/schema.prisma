@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum CourseType {
+  RECORDED
+  LIVE
+  OFFLINE
+}
+
+model Course {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String       @unique
+  description String
+  instructor  String
+  duration    String
+  type        CourseType
+  createdAt   DateTime     @default(now())
+  modules     Module[] // Relation to Module
+  enrollments Enrollment[] @relation("CourseEnrollments")
+}
+
+model Module {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  courseId  String    @db.ObjectId // Add @db.ObjectId here
+  course    Course    @relation(fields: [courseId], references: [id])
+  chapters  Chapter[]
+  createdAt DateTime  @default(now())
+}
+
+model Chapter {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  textContent String?
+  videoUrl    String?
+  moduleId    String   @db.ObjectId // Add @db.ObjectId here
+  module      Module   @relation(fields: [moduleId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Enrollment {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @db.ObjectId
+  courseId       String    @db.ObjectId
+  user           User      @relation("UserEnrollments", fields: [userId], references: [id])
+  course         Course    @relation("CourseEnrollments", fields: [courseId], references: [id])
+  enrolledAt     DateTime  @default(now())
+  status         String
+  grade          Float?
+  completionDate DateTime?
+  feedback       String?
+  paymentStatus  String?
+}
+
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+model User {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String       @unique
+  password    String
+  role        UserRole
+  createdAt   DateTime     @default(now())
+  enrollments Enrollment[] @relation("UserEnrollments")
+}
